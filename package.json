@@ -1,0 +1,36 @@
+{
+  "name": "tally-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rodrigohpalmeirim/tally-bot.git"
+  },
+  "keywords": [
+    "discord",
+    "tally",
+    "bot",
+    "track",
+    "shared",
+    "expenses"
+  ],
+  "author": "Rodrigo Palmeirim",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rodrigohpalmeirim/tally-bot/issues"
+  },
+  "homepage": "https://github.com/rodrigohpalmeirim/tally-bot#readme",
+  "dependencies": {
+    "discord.js": "^14.7.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.31.0",
+    "nodemon": "^2.0.20"
+  }
+}
