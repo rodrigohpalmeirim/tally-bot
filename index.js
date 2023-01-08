@@ -178,9 +178,11 @@ async function showBalances(guildId) {
 
 	const guild = await Guilds.findOne({ where: { guildId: guildId } });
 	if (guild?.balancesMessageId) {
-		const channel = await client.channels.fetch(guild.balancesChannelId);
-		const message = await channel.messages.fetch(guild.balancesMessageId);
-		message.delete();
+		try {
+			const channel = await client.channels.fetch(guild.balancesChannelId);
+			const message = await channel.messages.fetch(guild.balancesMessageId);
+			message.delete()
+		} catch (error) {}
 	}
 
 	return { embeds: [{
