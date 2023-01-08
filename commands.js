@@ -12,6 +12,7 @@ module.exports = [
 		.addNumberOption(option =>
 			option.setName('amount')
 				.setDescription('The amount of the expense')
+				.setMinValue(0)
 				.setRequired(true),
 		),
 	new SlashCommandBuilder()
@@ -25,6 +26,7 @@ module.exports = [
 		.addNumberOption(option =>
 			option.setName('amount')
 				.setDescription('The amount of the income')
+				.setMinValue(0)
 				.setRequired(true),
 		),
 	new SlashCommandBuilder()
@@ -33,6 +35,7 @@ module.exports = [
 		.addNumberOption(option =>
 			option.setName('amount')
 				.setDescription('The amount of the transfer')
+				.setMinValue(0)
 				.setRequired(true),
 		)
 		.addUserOption(option =>
