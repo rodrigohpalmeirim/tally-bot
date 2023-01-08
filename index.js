@@ -36,30 +36,31 @@ client.on(Events.InteractionCreate, async interaction => {
 			newExpenses[interaction.guildId] = {};
 		}
 		if (interaction.isChatInputCommand()) { // Handle slash commands
-			if (interaction.commandName === 'expense') {
-				newExpenses[interaction.guildId][interaction.id] = {
-					type: 'expense',
-					title: interaction.options.getString('title'),
-					amount: interaction.options.getNumber('amount')
+			const { commandName, guildId, id, user, options } = interaction;
+			if (commandName === 'expense' || commandName === 'income') {
+				newExpenses[guildId][id] = {
+					type: commandName,
+					title: options.getString('title'),
+					amount: options.getNumber('amount')
 				};
 				await interaction.reply({
 					ephemeral: true,
 					components: [
-						new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`main-user_${interaction.id}`).setPlaceholder('Who paid the expense?')),
-						new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`involved-users_${interaction.id}`).setPlaceholder('Who is the expense for?').setMaxValues(25)),
-						new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`add-expense_${interaction.id}`).setLabel('Add expense').setStyle(ButtonStyle.Primary).setDisabled(true)),
+						new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`main-user_${id}`).setPlaceholder(commandName === 'expense' ? 'Who paid the expense?' : 'Who received the income?')),
+						new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`involved-users_${id}`).setPlaceholder(`Who is the ${commandName} for?`).setMaxValues(25)),
+						new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`add-${commandName}_${id}`).setLabel(`Add ${commandName}`).setStyle(ButtonStyle.Primary).setDisabled(true)),
 					]
 				});
-			} else if (interaction.commandName === 'transfer') {
+			} else if (commandName === 'transfer') {
 				await Expenses.create({
-					guildId: interaction.guildId,
+					guildId: guildId,
 					type: 'transfer',
-					amount: interaction.options.getNumber('amount'),
-					from: interaction.options.getUser('from').id,
-					to: interaction.options.getUser('to').id,
+					amount: options.getNumber('amount'),
+					from: options.getUser('from').id,
+					to: options.getUser('to').id,
 				});
 				await interaction.reply({
-					content: `${interaction.user} added a money transfer:${"||​||".repeat(200)}${interaction.options.getUser('from')}${interaction.options.getUser('to')}`,
+					content: `${user} added a money transfer:${"||​||".repeat(200)}${options.getUser('from')}${options.getUser('to')}`,
 					"embeds": [
 						{
 							"type": "rich",
@@ -67,17 +68,17 @@ client.on(Events.InteractionCreate, async interaction => {
 							"fields": [
 								{
 									"name": `Amount:`,
-									"value": `€${interaction.options.getNumber('amount')}`,
+									"value": `€${options.getNumber('amount')}`,
 									"inline": true
 								},
 								{
 									"name": `From:`,
-									"value": `${interaction.options.getUser('from')}`,
+									"value": `${options.getUser('from')}`,
 									"inline": true
 								},
 								{
 									"name": `To:`,
-									"value": `${interaction.options.getUser('to')}`,
+									"value": `${options.getUser('to')}`,
 									"inline": true
 								}
 							]
@@ -86,30 +87,31 @@ client.on(Events.InteractionCreate, async interaction => {
 				});
 			}
 		} else if (interaction.isUserSelectMenu()) { // Handle select menus
-			const { customId } = interaction;
+			const { customId, guildId, values } = interaction;
 			const [action, id] = customId.split('_');
+			const type = newExpenses[guildId][id].type;
 			if (action === 'main-user') {
-				newExpenses[interaction.guildId][id].mainUser = interaction.values[0];
+				newExpenses[guildId][id].mainUser = values[0];
 			} else if (action === 'involved-users') {
-				newExpenses[interaction.guildId][id].involvedUsers = interaction.values;
+				newExpenses[guildId][id].involvedUsers = values;
 			}
 			interaction.update({
 				components: [
-					new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`main-user_${id}`).setPlaceholder('Who paid the expense?').setMinValues(0)),
-					new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`involved-users_${id}`).setPlaceholder('Who is the expense for?').setMinValues(0).setMaxValues(25)),
-					new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`add-expense_${id}`).setLabel('Add expense').setStyle(ButtonStyle.Primary).setDisabled(!newExpenses[interaction.guildId][id].mainUser || !newExpenses[interaction.guildId][id].involvedUsers?.length)),
+					new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`main-user_${id}`).setPlaceholder(type === 'expense' ? 'Who paid the expense?' : 'Who received the income?')),
+					new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`involved-users_${id}`).setPlaceholder(`Who is the ${type} for?`).setMaxValues(25)),
+					new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`add-${type}_${id}`).setLabel(`Add ${type}`).setStyle(ButtonStyle.Primary).setDisabled(!newExpenses[guildId][id].mainUser || !newExpenses[guildId][id].involvedUsers?.length)),
 				]
 			});
 		} else if (interaction.isButton()) { // Handle buttons
-			const { customId } = interaction;
+			const { customId, user } = interaction;
 			const [action, id] = customId.split('_');
-			if (action === 'add-expense') {
-				await Expenses.create({ ...newExpenses[interaction.guildId][id], guildId: interaction.guildId, involvedUsers: newExpenses[interaction.guildId][id].involvedUsers.join(',') });
-				const { mainUser, involvedUsers, title, amount } = newExpenses[interaction.guildId][id];
-				delete newExpenses[interaction.guildId][id];
-				await interaction.update({ content: 'Expense added!', components: [] });
+			if (action === 'add-expense' || action === 'add-income') {
+				const { mainUser, involvedUsers, title, amount, type } = newExpenses[guildId][id];
+				await Expenses.create({ ...newExpenses[guildId][id], guildId: guildId, involvedUsers: involvedUsers.join(',') });
+				delete newExpenses[guildId][id];
+				await interaction.update({ content: (type === 'expense' ? 'Expense added!' : 'Income added!'), components: [] });
 				await interaction.channel.send({
-					content: `${interaction.user} added an expense:${"||​||".repeat(200)}<@${mainUser}>{${involvedUsers.map(user => `<@${user}>`).join('')}`,
+					content: `${user} added an ${type}:${"||​||".repeat(200)}<@${mainUser}>{${involvedUsers.map(user => `<@${user}>`).join('')}`,
 					"embeds": [
 						{
 							"type": "rich",
@@ -121,7 +123,7 @@ client.on(Events.InteractionCreate, async interaction => {
 									"inline": true
 								},
 								{
-									"name": `Paid by:`,
+									"name": type === 'expense' ? `Paid by:` : `Received by:`,
 									"value": `<@${mainUser}>`,
 									"inline": true
 								},
