@@ -15,6 +15,7 @@ client.on(Events.InteractionCreate, async interaction => {
 		if (interaction.isChatInputCommand()) { // Handle slash commands
 			if (interaction.commandName === 'expense') {
 				newExpenses[interaction.id] = {
+					type: 'expense',
 					title: interaction.options.getString('title'),
 					amount: interaction.options.getNumber('amount')
 				};
@@ -24,6 +25,39 @@ client.on(Events.InteractionCreate, async interaction => {
 						new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`main-user_${interaction.id}`).setPlaceholder('Who paid the expense?')),
 						new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`involved-users_${interaction.id}`).setPlaceholder('Who is the expense for?').setMaxValues(25)),
 						new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`add-expense_${interaction.id}`).setLabel('Add expense').setStyle(ButtonStyle.Primary).setDisabled(true)),
+					]
+				});
+			} else if (interaction.commandName === 'transfer') {
+				newExpenses[interaction.id] = {
+					type: 'transfer',
+					amount: interaction.options.getNumber('amount'),
+					from: interaction.options.getUser('from'),
+					to: interaction.options.getUser('to')
+				};
+				await interaction.reply({
+					content: `${interaction.user} added a money transfer:`,
+					"embeds": [
+						{
+							"type": "rich",
+							"title": "Money transfer",
+							"fields": [
+								{
+									"name": `Amount:`,
+									"value": `€${interaction.options.getNumber('amount')}`,
+									"inline": true
+								},
+								{
+									"name": `From:`,
+									"value": `${interaction.options.getUser('from')}`,
+									"inline": true
+								},
+								{
+									"name": `To:`,
+									"value": `${interaction.options.getUser('to')}`,
+									"inline": true
+								}
+							]
+						}
 					]
 				});
 			}

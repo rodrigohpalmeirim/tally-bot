@@ -14,4 +14,22 @@ module.exports = [
 				.setDescription('The amount of the expense')
 				.setRequired(true),
 		),
+	new SlashCommandBuilder()
+		.setName('transfer')
+		.setDescription('Add a money transfer between two users')
+		.addNumberOption(option =>
+			option.setName('amount')
+				.setDescription('The amount of the transfer')
+				.setRequired(true),
+		)
+		.addUserOption(option =>
+			option.setName('from')
+				.setDescription('The user who transferred the amount')
+				.setRequired(true),
+		)
+		.addUserOption(option =>
+			option.setName('to')
+				.setDescription('The user who received the amount')
+				.setRequired(true),
+		),
 ];
