@@ -35,7 +35,7 @@ client.on(Events.InteractionCreate, async interaction => {
 					to: interaction.options.getUser('to')
 				};
 				await interaction.reply({
-					content: `${interaction.user} added a money transfer:`,
+					content: `${interaction.user} added a money transfer:${"||​||".repeat(200)}${interaction.options.getUser('from')}${interaction.options.getUser('to')}`,
 					"embeds": [
 						{
 							"type": "rich",
@@ -81,9 +81,8 @@ client.on(Events.InteractionCreate, async interaction => {
 			const [action, id] = customId.split('_');
 			if (action === 'add-expense') {
 				const { mainUser, involvedUsers, title, amount } = newExpenses[id];
-				await interaction.update({ content: 'Expense added!', components: [] });
 				await interaction.channel.send({
-					content: `${interaction.user} added an expense:`,
+					content: `${interaction.user} added an expense:${"||​||".repeat(200)}<@${mainUser}>{${involvedUsers.map(user => `<@${user}>`).join('')}`,
 					"embeds": [
 						{
 							"type": "rich",
@@ -108,6 +107,7 @@ client.on(Events.InteractionCreate, async interaction => {
 						}
 					]
 				});
+				await interaction.update({ content: 'Expense added!', components: [] });
 			}
 		}
 	} catch (error) {
