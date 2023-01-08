@@ -45,4 +45,7 @@ module.exports = [
 				.setDescription('The user who received the amount')
 				.setRequired(true),
 		),
+	new SlashCommandBuilder()
+		.setName('balances')
+		.setDescription('Show the balances of all users'),
 ];
