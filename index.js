@@ -32,8 +32,8 @@ const Guilds = sequelize.define('guilds', {
 		type: Sequelize.STRING,
 		unique: true,
 	},
-	balancesMessageId: Sequelize.STRING,
-	balancesChannelId: Sequelize.STRING,
+	tallyMessageId: Sequelize.STRING,
+	tallyChannelId: Sequelize.STRING,
 });
 
 const newExpenses = {}
@@ -94,12 +94,12 @@ client.on(Events.InteractionCreate, async interaction => {
 						}
 					]
 				});
-				const balanceMessage = await interaction.channel.send(await showBalances(guildId));
-				await Guilds.upsert({ guildId: guildId, balancesMessageId: balanceMessage.id, balancesChannelId: interaction.channelId });
-			} else if (commandName === 'balances') {
+				const balanceMessage = await interaction.channel.send(await tally(guildId));
+				await Guilds.upsert({ guildId: guildId, tallyMessageId: balanceMessage.id, tallyChannelId: interaction.channelId });
+			} else if (commandName === 'tally') {
 				await interaction.deferReply();
-				const balanceMessage = await interaction.followUp(await showBalances(guildId));
-				await Guilds.upsert({ guildId: guildId, balancesMessageId: balanceMessage.id, balancesChannelId: interaction.channelId });
+				const balanceMessage = await interaction.followUp(await tally(guildId));
+				await Guilds.upsert({ guildId: guildId, tallyMessageId: balanceMessage.id, tallyChannelId: interaction.channelId });
 			}
 		} else if (interaction.isUserSelectMenu()) { // Handle select menus
 			const { customId, guildId, values } = interaction;
@@ -151,8 +151,8 @@ client.on(Events.InteractionCreate, async interaction => {
 						}
 					]
 				});
-				const balanceMessage = await interaction.channel.send(await showBalances(guildId));
-				await Guilds.upsert({ guildId: guildId, balancesMessageId: balanceMessage.id, balancesChannelId: interaction.channelId });
+				const balanceMessage = await interaction.channel.send(await tally(guildId));
+				await Guilds.upsert({ guildId: guildId, tallyMessageId: balanceMessage.id, tallyChannelId: interaction.channelId });
 			}
 		}
 	} catch (error) {
@@ -160,34 +160,32 @@ client.on(Events.InteractionCreate, async interaction => {
 	}
 });
 
-async function showBalances(guildId) {
+async function tally(guildId) {
 	const expenses = await Expenses.findAll({ where: { guildId: guildId } });
 	const users = [...new Set(expenses.map(expense => expense.primaryUser).concat(expenses.map(expense => expense.secondaryUsers?.split(',')).flat()))];
-	const balances = {};
-	users.forEach(user => balances[user] = 0);
+	const tally = {};
+	users.forEach(user => tally[user] = 0);
 	expenses.forEach(expense => {
 		const { primaryUser, secondaryUsers, amount, type } = expense;
 		if (type === 'expense' || type === 'transfer') {
-			balances[primaryUser] += amount;
-			secondaryUsers.split(',').forEach(user => balances[user] -= amount / secondaryUsers.split(',').length);
+			tally[primaryUser] += amount;
+			secondaryUsers.split(',').forEach(user => tally[user] -= amount / secondaryUsers.split(',').length);
 		} else if (type === 'income') {
-			balances[primaryUser] -= amount;
-			secondaryUsers.split(',').forEach(user => balances[user] += amount / secondaryUsers.split(',').length);
+			tally[primaryUser] -= amount;
+			secondaryUsers.split(',').forEach(user => tally[user] += amount / secondaryUsers.split(',').length);
 		}
 	});
 
 	const guild = await Guilds.findOne({ where: { guildId: guildId } });
-	if (guild?.balancesMessageId) {
-		try {
-			const channel = await client.channels.fetch(guild.balancesChannelId);
-			const message = await channel.messages.fetch(guild.balancesMessageId);
-			message.delete()
-		} catch (error) {}
-	}
+	try {
+		const channel = await client.channels.fetch(guild.tallyChannelId);
+		const message = await channel.messages.fetch(guild.tallyMessageId);
+		message.delete()
+	} catch (error) {}
 
 	return { embeds: [{
-		title: 'Balances',
-		description: users.length === 0 ? "There are no expenses yet" : users.map(user => `<@${user}>: ${balances[user] > 0 ? '+' : balances[user] < 0 ? '-' : ''}€${Math.abs(balances[user]).toFixed(2)}`).join('\n')
+		title: 'Tally',
+		description: users.length === 0 ? "There are no expenses yet" : users.map(user => `<@${user}>: ${tally[user] > 0 ? '+' : tally[user] < 0 ? '-' : ''}€${Math.abs(tally[user]).toFixed(2)}`).join('\n')
 	}] };
 }
 

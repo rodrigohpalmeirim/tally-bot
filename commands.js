@@ -49,6 +49,6 @@ module.exports = [
 				.setRequired(true),
 		),
 	new SlashCommandBuilder()
-		.setName('balances')
+		.setName('tally')
 		.setDescription('Show the balances of all users'),
 ];
