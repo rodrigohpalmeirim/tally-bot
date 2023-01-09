@@ -1,4 +1,5 @@
-const { Client, Events, GatewayIntentBits, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder, EmbedBuilder } = require('discord.js');
+const { Client, Events, GatewayIntentBits, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { createCanvas } = require('@napi-rs/canvas');
 const { clientId, guildId, token } = require('./config.json');
 const Sequelize = require('sequelize');
 const commands = require('./commands.js');
@@ -6,8 +7,8 @@ const commands = require('./commands.js');
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.once(Events.ClientReady, c => {
-	Expenses.sync({ force : true }); // TODO: Remove force: true
-	Guilds.sync({ force : true }); // TODO: Remove force: true
+	Expenses.sync({ force: true }); // TODO: Remove force: true
+	Guilds.sync({ force: true }); // TODO: Remove force: true
 	console.log(`Ready! Logged in as ${c.user.tag}`);
 });
 
@@ -40,12 +41,12 @@ const newExpenses = {}
 
 client.on(Events.InteractionCreate, async interaction => {
 	try {
-		if (!newExpenses[interaction.guildId]) {
-			newExpenses[interaction.guildId] = {};
-		}
 		if (interaction.isChatInputCommand()) { // Handle slash commands
 			const { commandName, guildId, id, user, options } = interaction;
 			if (commandName === 'expense' || commandName === 'income') {
+				if (!newExpenses[guildId]) {
+					newExpenses[guildId] = {};
+				}
 				newExpenses[guildId][id] = {
 					type: commandName,
 					title: options.getString('title'),
@@ -162,6 +163,9 @@ client.on(Events.InteractionCreate, async interaction => {
 
 async function tally(guildId) {
 	const expenses = await Expenses.findAll({ where: { guildId: guildId } });
+	
+	if (!expenses.length) return { embeds: [{ title: "Tally", description: "No expenses have been added yet." }] };
+	
 	const users = [...new Set(expenses.map(expense => expense.primaryUser).concat(expenses.map(expense => expense.secondaryUsers?.split(',')).flat()))];
 	const tally = {};
 	users.forEach(user => tally[user] = 0);
@@ -176,17 +180,50 @@ async function tally(guildId) {
 		}
 	});
 
+	const max = Math.max(...Object.values(tally).map(Math.abs));
+	const w = 600, r = 8, barHeight = 52, barSpacing = 8;
+	const h = (barHeight + barSpacing) * users.length + 8;
+	const canvas = createCanvas(w, h);
+	const ctx = canvas.getContext('2d');
+	ctx.font = "28px sans-serif";
+	ctx.textBaseline = 'middle';
+	users.forEach((user, i) => {
+		const username = client.users.cache.get(user).username;
+		const balanceStr = `${tally[user] > 0 ? "+" : tally[user] < 0 ? "-" : ""}€${Math.abs(tally[user]).toFixed(2)}`;
+		const barWidth = Math.abs(tally[user]) / max * w / 2;
+		ctx.beginPath();
+		if (tally[user] >= 0) {
+			if (tally[user] > 0) {
+				ctx.fillStyle = '#57F28780';
+				ctx.roundRect(w / 2, 8 + (barHeight + barSpacing) * i, barWidth, barHeight, [0, r, r, 0]);
+				ctx.fill();
+			}
+			ctx.textAlign = 'right';
+			ctx.fillStyle = '#FFFFFF';
+			ctx.fillText(username, w / 2 - 16, 8 + barHeight / 2 + (barHeight + barSpacing) * i);
+			if (tally[user] > 0) ctx.fillStyle = '#FFFFFF';
+			ctx.textAlign = 'left';
+			ctx.fillText(balanceStr, w / 2 + 16, 8 + barHeight / 2 + (barHeight + barSpacing) * i);
+		} else {
+			ctx.fillStyle = '#ED424580';
+			ctx.roundRect(0, 8 + (barHeight + barSpacing) * i, barWidth, barHeight, [r, 0, 0, r]);
+			ctx.fill();
+			ctx.textAlign = 'left';
+			ctx.fillStyle = '#FFFFFF';
+			ctx.fillText(username, w / 2 + 16, 8 + barHeight / 2 + (barHeight + barSpacing) * i);
+			ctx.textAlign = 'right';
+			ctx.fillText(balanceStr, w / 2 - 16, 8 + barHeight / 2 + (barHeight + barSpacing) * i);
+		}
+	});
+
 	const guild = await Guilds.findOne({ where: { guildId: guildId } });
 	try {
 		const channel = await client.channels.fetch(guild.tallyChannelId);
 		const message = await channel.messages.fetch(guild.tallyMessageId);
 		message.delete()
-	} catch (error) {}
+	} catch (error) { }
 
-	return { embeds: [{
-		title: 'Tally',
-		description: users.length === 0 ? "There are no expenses yet" : users.map(user => `<@${user}>: ${tally[user] > 0 ? '+' : tally[user] < 0 ? '-' : ''}€${Math.abs(tally[user]).toFixed(2)}`).join('\n')
-	}] };
+	return { embeds: [{ title: "Tally", image: { url: "attachment://tally.png" } }], files: [new AttachmentBuilder(await canvas.encode('png'), { name: 'tally.png' })] };
 }
 
 const rest = new REST({ version: '10' }).setToken(token);
@@ -194,7 +231,7 @@ rest.put(
 	Routes.applicationGuildCommands(clientId, guildId),
 	{ body: commands.map(command => command.toJSON()) },
 )
-.then(data => console.log(`Successfully reloaded ${data.length} application (/) commands.`))
-.catch(console.error);
+	.then(data => console.log(`Successfully reloaded ${data.length} application (/) commands.`))
+	.catch(console.error);
 
 client.login(token);
