@@ -206,7 +206,7 @@ async function tally(guildId) {
 			ctx.fillText(balanceStr, w / 2 + 16, 8 + barHeight / 2 + (barHeight + barSpacing) * i);
 		} else {
 			ctx.fillStyle = '#ED424580';
-			ctx.roundRect(0, 8 + (barHeight + barSpacing) * i, barWidth, barHeight, [r, 0, 0, r]);
+			ctx.roundRect(w / 2 - barWidth, 8 + (barHeight + barSpacing) * i, barWidth, barHeight, [r, 0, 0, r]);
 			ctx.fill();
 			ctx.textAlign = 'left';
 			ctx.fillStyle = '#FFFFFF';
