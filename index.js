@@ -1,8 +1,9 @@
-const { Client, Events, GatewayIntentBits, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { Client, Events, GatewayIntentBits, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, UserSelectMenuBuilder, EmbedBuilder, AttachmentBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ModalBuilder } = require('discord.js');
 const { createCanvas } = require('@napi-rs/canvas');
 const { clientId, guildId, token } = require('./config.json');
 const Sequelize = require('sequelize');
 const commands = require('./commands.js');
+const { getCurrencies, convertionRate, formatCurrency } = require('./currencies.js');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -26,6 +27,8 @@ const Expenses = sequelize.define('expenses', {
 	type: Sequelize.STRING,
 	primaryUser: Sequelize.STRING,
 	secondaryUsers: Sequelize.STRING,
+	currency: Sequelize.STRING,
+	conversionRate: Sequelize.FLOAT,
 });
 
 const Guilds = sequelize.define('guilds', {
@@ -33,24 +36,55 @@ const Guilds = sequelize.define('guilds', {
 		type: Sequelize.STRING,
 		unique: true,
 	},
+	currency: Sequelize.STRING,
 	tallyMessageId: Sequelize.STRING,
 	tallyChannelId: Sequelize.STRING,
 });
 
-const newExpenses = {}
+const newExpenses = {};
 
 client.on(Events.InteractionCreate, async interaction => {
 	try {
 		if (interaction.isChatInputCommand()) { // Handle slash commands
 			const { commandName, guildId, id, user, options } = interaction;
-			if (commandName === 'expense' || commandName === 'income') {
+
+			if (options.getString('currency') && !getCurrencies()[options.getString('currency')]) {
+				return interaction.reply({ ephemeral: true, content: `Invalid currency` });
+			}
+
+			if (commandName === 'setup') {
+				if (await Guilds.findOne({ where: { guildId: guildId } })) {
+					await interaction.reply({
+						ephemeral: true,
+						content: 'This server already has a tally! Are you sure you want to reset it?',
+						components: [
+							new ActionRowBuilder().addComponents(
+								new ButtonBuilder().setCustomId(`reset-tally_${id}_${options.getString('currency')}`).setLabel('Reset tally').setStyle(ButtonStyle.Danger),
+								new ButtonBuilder().setCustomId(`cancel-reset-tally_${id}`).setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+							),
+						]
+					});
+				} else {
+					await Guilds.create({ guildId, currency: options.getString('currency') });
+					await interaction.reply({
+						ephemeral: true,
+						content: `Tally created! You can now use the </expense:${commandData.expense.id}>, </income:${commandData.income.id}> and </transfer:${commandData.transfer.id}> commands to add new entries and use the </tally:${commandData.tally.id}> command to view the tally.`,
+					});
+				}
+			} else if (!await Guilds.findOne({ where: { guildId: guildId } })) {
+				return interaction.reply({
+					ephemeral: true,
+					content: `This server is not set up yet. Please use the </setup:${commandData.setup.id}> command to create a new tally.`,
+				});
+			} else if (commandName === 'expense' || commandName === 'income') {
 				if (!newExpenses[guildId]) {
 					newExpenses[guildId] = {};
 				}
 				newExpenses[guildId][id] = {
 					type: commandName,
 					title: options.getString('title'),
-					amount: options.getNumber('amount')
+					amount: options.getNumber('amount'),
+					currency: options.getString('currency'),
 				};
 				await interaction.reply({
 					ephemeral: true,
@@ -61,6 +95,8 @@ client.on(Events.InteractionCreate, async interaction => {
 					]
 				});
 			} else if (commandName === 'transfer') {
+				const tallyCurrency = (await Guilds.findOne({ where: { guildId: guildId } })).currency;
+				const currency = options.getString('currency') || tallyCurrency;
 				await Expenses.create({
 					title: 'Money transfer',
 					guildId: guildId,
@@ -68,6 +104,8 @@ client.on(Events.InteractionCreate, async interaction => {
 					amount: options.getNumber('amount'),
 					primaryUser: options.getUser('from').id,
 					secondaryUsers: options.getUser('to').id,
+					currency: currency,
+					conversionRate: convertionRate(currency, tallyCurrency),
 				});
 				await interaction.reply({
 					content: `${user} added a money transfer:${"||​||".repeat(200)}${options.getUser('from')}${options.getUser('to')}`,
@@ -78,7 +116,7 @@ client.on(Events.InteractionCreate, async interaction => {
 							"fields": [
 								{
 									"name": `Amount:`,
-									"value": `€${options.getNumber('amount').toFixed(2)}`,
+									"value": `${formatCurrency(options.getNumber('amount') * convertionRate(currency, tallyCurrency), tallyCurrency)} ${currency !== tallyCurrency ? `(${formatCurrency(options.getNumber('amount'), currency)})` : ''}`,
 									"inline": true
 								},
 								{
@@ -91,7 +129,10 @@ client.on(Events.InteractionCreate, async interaction => {
 									"value": `${options.getUser('to')}`,
 									"inline": true
 								}
-							]
+							],
+							"footer": {
+								"text": currency !== tallyCurrency ? `Rate: ${formatCurrency(1, currency, false, false, 0)} = ${formatCurrency(convertionRate(currency, tallyCurrency), tallyCurrency, false, false, 6)}` : ""
+							}
 						}
 					]
 				});
@@ -102,6 +143,10 @@ client.on(Events.InteractionCreate, async interaction => {
 				const balanceMessage = await interaction.followUp(await tally(guildId));
 				await Guilds.upsert({ guildId: guildId, tallyMessageId: balanceMessage.id, tallyChannelId: interaction.channelId });
 			}
+		} else if (interaction.isAutocomplete()) { // Handle autocomplete
+			const focusedValue = interaction.options.getFocused();
+			const filtered = Object.values(getCurrencies()).filter(s => `[${s.code}] ${s.description}`.toLowerCase().includes(focusedValue.toLowerCase())).slice(0, 25);
+			await interaction.respond(filtered.map(s => ({ name: `[${s.code}] ${s.description}`, value: s.code })));
 		} else if (interaction.isUserSelectMenu()) { // Handle select menus
 			const { customId, guildId, values } = interaction;
 			const [action, id] = customId.split('_');
@@ -120,10 +165,12 @@ client.on(Events.InteractionCreate, async interaction => {
 			});
 		} else if (interaction.isButton()) { // Handle buttons
 			const { customId, user } = interaction;
-			const [action, id] = customId.split('_');
+			const [action, id, ...options] = customId.split('_');
 			if (action === 'add-expense' || action === 'add-income') {
 				const { primaryUser, secondaryUsers, title, amount, type } = newExpenses[guildId][id];
-				await Expenses.create({ ...newExpenses[guildId][id], guildId: guildId, secondaryUsers: secondaryUsers.join(',') });
+				const tallyCurrency = (await Guilds.findOne({ where: { guildId: guildId } })).currency;
+				const currency = newExpenses[guildId][id].currency || tallyCurrency;
+				await Expenses.create({ ...newExpenses[guildId][id], guildId: guildId, secondaryUsers: secondaryUsers.join(','), currency: currency });
 				delete newExpenses[guildId][id];
 				await interaction.update({ content: (type === 'expense' ? 'Expense added!' : 'Income added!'), components: [] });
 				await interaction.channel.send({
@@ -135,7 +182,7 @@ client.on(Events.InteractionCreate, async interaction => {
 							"fields": [
 								{
 									"name": `Amount:`,
-									"value": `€${amount.toFixed(2)}`,
+									"value": `${formatCurrency(amount * convertionRate(currency, tallyCurrency), tallyCurrency)} ${currency !== tallyCurrency ? `(${formatCurrency(amount, currency)})` : ''}`,
 									"inline": true
 								},
 								{
@@ -148,12 +195,21 @@ client.on(Events.InteractionCreate, async interaction => {
 									"value": `${secondaryUsers.map(user => `<@${user}>`).join(' ')}`,
 									"inline": secondaryUsers.length == 1
 								}
-							]
+							],
+							"footer": {
+								"text": currency !== tallyCurrency ? `Rate: ${formatCurrency(1, currency, false, false, 0)} = ${formatCurrency(convertionRate(currency, tallyCurrency), tallyCurrency, false, false, 6)}` : ""
+							}
 						}
 					]
 				});
 				const balanceMessage = await interaction.channel.send(await tally(guildId));
 				await Guilds.upsert({ guildId: guildId, tallyMessageId: balanceMessage.id, tallyChannelId: interaction.channelId });
+			} else if (action === 'cancel-reset-tally') {
+				await interaction.update({ content: 'Reset cancelled', components: [] });
+			} else if (action === 'reset-tally') {
+				await Expenses.destroy({ where: { guildId: guildId } });
+				await Guilds.upsert({ guildId: guildId, tallyMessageId: null, tallyChannelId: null, currency: options[0] });
+				await interaction.update({ content: 'Tally reset', components: [] });
 			}
 		}
 	} catch (error) {
@@ -163,20 +219,22 @@ client.on(Events.InteractionCreate, async interaction => {
 
 async function tally(guildId) {
 	const expenses = await Expenses.findAll({ where: { guildId: guildId } });
-	
+
 	if (!expenses.length) return { embeds: [{ title: "Tally", description: "No expenses have been added yet." }] };
-	
+
 	const users = [...new Set(expenses.map(expense => expense.primaryUser).concat(expenses.map(expense => expense.secondaryUsers?.split(',')).flat()))];
+	const tallyCurrency = (await Guilds.findOne({ where: { guildId: guildId } })).currency;
 	const tally = {};
 	users.forEach(user => tally[user] = 0);
 	expenses.forEach(expense => {
 		const { primaryUser, secondaryUsers, amount, type } = expense;
+		const convertedAmount = amount * convertionRate(expense.currency, tallyCurrency);
 		if (type === 'expense' || type === 'transfer') {
-			tally[primaryUser] += amount;
-			secondaryUsers.split(',').forEach(user => tally[user] -= amount / secondaryUsers.split(',').length);
+			tally[primaryUser] += convertedAmount;
+			secondaryUsers.split(',').forEach(user => tally[user] -= convertedAmount / secondaryUsers.split(',').length);
 		} else if (type === 'income') {
-			tally[primaryUser] -= amount;
-			secondaryUsers.split(',').forEach(user => tally[user] += amount / secondaryUsers.split(',').length);
+			tally[primaryUser] -= convertedAmount;
+			secondaryUsers.split(',').forEach(user => tally[user] += convertedAmount / secondaryUsers.split(',').length);
 		}
 	});
 
@@ -189,7 +247,7 @@ async function tally(guildId) {
 	ctx.textBaseline = 'middle';
 	users.forEach((user, i) => {
 		const username = client.users.cache.get(user).username;
-		const balanceStr = `${tally[user] > 0 ? "+" : tally[user] < 0 ? "-" : ""}€${Math.abs(tally[user]).toFixed(2)}`;
+		const balanceStr = formatCurrency(tally[user], tallyCurrency, true);
 		const barWidth = Math.abs(tally[user]) / max * w / 2;
 		ctx.beginPath();
 		if (tally[user] >= 0) {
@@ -226,12 +284,17 @@ async function tally(guildId) {
 	return { embeds: [{ title: "Tally", image: { url: "attachment://tally.png" } }], files: [new AttachmentBuilder(await canvas.encode('png'), { name: 'tally.png' })] };
 }
 
+const commandData = {};
+
 const rest = new REST({ version: '10' }).setToken(token);
 rest.put(
 	Routes.applicationGuildCommands(clientId, guildId),
 	{ body: commands.map(command => command.toJSON()) },
 )
-	.then(data => console.log(`Successfully reloaded ${data.length} application (/) commands.`))
+	.then(data => {
+		console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+		data.forEach(command => commandData[command.name] = command);
+	})
 	.catch(console.error);
 
 client.login(token);

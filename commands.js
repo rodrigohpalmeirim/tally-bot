@@ -1,6 +1,16 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 
 module.exports = [
+	new SlashCommandBuilder()
+		.setName('setup')
+		.setDescription('Create a new tally for your server')
+		.addStringOption(option =>
+			option.setName('currency')
+				.setDescription('The currency to use for the tally. This value cannot be changed later without resetting the tally.')
+				.setRequired(true)
+				.setAutocomplete(true),
+		)
+		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 	new SlashCommandBuilder()
 		.setName('expense')
 		.setDescription('Add a shared expense')
@@ -14,6 +24,11 @@ module.exports = [
 				.setDescription('The amount of the expense')
 				.setMinValue(0)
 				.setRequired(true),
+		)
+		.addStringOption(option =>
+			option.setName('currency')
+				.setDescription('The currency of the expense.')
+				.setAutocomplete(true),
 		),
 	new SlashCommandBuilder()
 		.setName('income')
@@ -28,6 +43,11 @@ module.exports = [
 				.setDescription('The amount of the income')
 				.setMinValue(0)
 				.setRequired(true),
+		)
+		.addStringOption(option =>
+			option.setName('currency')
+				.setDescription('The currency of the income.')
+				.setAutocomplete(true),
 		),
 	new SlashCommandBuilder()
 		.setName('transfer')
@@ -47,6 +67,11 @@ module.exports = [
 			option.setName('to')
 				.setDescription('The user who received the amount')
 				.setRequired(true),
+		)
+		.addStringOption(option =>
+			option.setName('currency')
+				.setDescription('The currency of the money transfer.')
+				.setAutocomplete(true),
 		),
 	new SlashCommandBuilder()
 		.setName('tally')
