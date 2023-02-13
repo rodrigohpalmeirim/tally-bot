@@ -78,6 +78,8 @@ client.on(Events.InteractionCreate, async interaction => {
 					content: `This server is not set up yet. Please use the </setup:${commandData.setup.id}> command to create a new tally.`,
 				});
 			} else if (commandName === 'expense' || commandName === 'income') {
+				const tallyCurrency = (await Guilds.findOne({ where: { guildId: guildId } })).currency;
+				const currency = options.getString('currency') || tallyCurrency;
 				if (!newExpenses[guildId]) {
 					newExpenses[guildId] = {};
 				}
@@ -85,7 +87,8 @@ client.on(Events.InteractionCreate, async interaction => {
 					type: commandName,
 					title: options.getString('title'),
 					amount: options.getNumber('amount'),
-					currency: options.getString('currency'),
+					currency: currency,
+					conversionRate: convertionRate(currency, tallyCurrency),
 				};
 				await interaction.reply({
 					ephemeral: true,
@@ -228,8 +231,8 @@ async function tally(guildId) {
 	const tally = {};
 	users.forEach(user => tally[user] = 0);
 	expenses.forEach(expense => {
-		const { primaryUser, secondaryUsers, amount, type } = expense;
-		const convertedAmount = amount * convertionRate(expense.currency, tallyCurrency);
+		const { primaryUser, secondaryUsers, amount, type, conversionRate } = expense;
+		const convertedAmount = amount * conversionRate;
 		if (type === 'expense' || type === 'transfer') {
 			tally[primaryUser] += convertedAmount;
 			secondaryUsers.split(',').forEach(user => tally[user] -= convertedAmount / secondaryUsers.split(',').length);
