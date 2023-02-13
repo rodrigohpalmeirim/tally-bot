@@ -28,7 +28,7 @@ async function update() {
 update();
 setInterval(update, 1000 * 60 * 60);
 
-function convertionRate(from, to) {
+function conversionRate(from, to) {
     return rates[to] / rates[from];
 }
 
@@ -42,4 +42,4 @@ function formatCurrency(value, currency, showPositiveSign = false, showSymbol = 
     return showSymbol && symbols[currency] ? `${sign}${symbols[currency]}${value}` : `${sign}${value} ${currency}`;
 }
 
-module.exports = { getCurrencies, convertionRate, formatCurrency };
+module.exports = { getCurrencies, conversionRate, formatCurrency };

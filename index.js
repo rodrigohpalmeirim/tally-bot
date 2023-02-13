@@ -3,7 +3,7 @@ const { createCanvas } = require('@napi-rs/canvas');
 const { clientId, guildId, token } = require('./config.json');
 const Sequelize = require('sequelize');
 const commands = require('./commands.js');
-const { getCurrencies, convertionRate, formatCurrency } = require('./currencies.js');
+const { getCurrencies, conversionRate, formatCurrency } = require('./currencies.js');
 const { minimumTransactions } = require('./transactions.js');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -88,7 +88,7 @@ client.on(Events.InteractionCreate, async interaction => {
 					title: options.getString('title'),
 					amount: options.getNumber('amount'),
 					currency: currency,
-					conversionRate: convertionRate(currency, tallyCurrency),
+					conversionRate: conversionRate(currency, tallyCurrency),
 				};
 				await interaction.reply({
 					ephemeral: true,
@@ -109,7 +109,7 @@ client.on(Events.InteractionCreate, async interaction => {
 					primaryUser: options.getUser('from').id,
 					secondaryUsers: options.getUser('to').id,
 					currency: currency,
-					conversionRate: convertionRate(currency, tallyCurrency),
+					conversionRate: conversionRate(currency, tallyCurrency),
 				});
 				await interaction.reply({
 					content: `${user} added a money transfer:${"||​||".repeat(200)}${options.getUser('from')}${options.getUser('to')}`,
@@ -120,7 +120,7 @@ client.on(Events.InteractionCreate, async interaction => {
 							"fields": [
 								{
 									"name": `Amount:`,
-									"value": `${formatCurrency(options.getNumber('amount') * convertionRate(currency, tallyCurrency), tallyCurrency)} ${currency !== tallyCurrency ? `(${formatCurrency(options.getNumber('amount'), currency)})` : ''}`,
+									"value": `${formatCurrency(options.getNumber('amount') * conversionRate(currency, tallyCurrency), tallyCurrency)} ${currency !== tallyCurrency ? `(${formatCurrency(options.getNumber('amount'), currency)})` : ''}`,
 									"inline": true
 								},
 								{
@@ -135,7 +135,7 @@ client.on(Events.InteractionCreate, async interaction => {
 								}
 							],
 							"footer": {
-								"text": currency !== tallyCurrency ? `Rate: ${formatCurrency(1, currency, false, false, 0)} = ${formatCurrency(convertionRate(currency, tallyCurrency), tallyCurrency, false, false, 6)}` : ""
+								"text": currency !== tallyCurrency ? `Rate: ${formatCurrency(1, currency, false, false, 0)} = ${formatCurrency(conversionRate(currency, tallyCurrency), tallyCurrency, false, false, 6)}` : ""
 							}
 						}
 					]
@@ -204,7 +204,7 @@ client.on(Events.InteractionCreate, async interaction => {
 							"fields": [
 								{
 									"name": `Amount:`,
-									"value": `${formatCurrency(amount * convertionRate(currency, tallyCurrency), tallyCurrency)} ${currency !== tallyCurrency ? `(${formatCurrency(amount, currency)})` : ''}`,
+									"value": `${formatCurrency(amount * conversionRate(currency, tallyCurrency), tallyCurrency)} ${currency !== tallyCurrency ? `(${formatCurrency(amount, currency)})` : ''}`,
 									"inline": true
 								},
 								{
@@ -219,7 +219,7 @@ client.on(Events.InteractionCreate, async interaction => {
 								}
 							],
 							"footer": {
-								"text": currency !== tallyCurrency ? `Rate: ${formatCurrency(1, currency, false, false, 0)} = ${formatCurrency(convertionRate(currency, tallyCurrency), tallyCurrency, false, false, 6)}` : ""
+								"text": currency !== tallyCurrency ? `Rate: ${formatCurrency(1, currency, false, false, 0)} = ${formatCurrency(conversionRate(currency, tallyCurrency), tallyCurrency, false, false, 6)}` : ""
 							}
 						}
 					]
