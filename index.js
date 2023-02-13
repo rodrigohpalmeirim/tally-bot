@@ -4,6 +4,7 @@ const { clientId, guildId, token } = require('./config.json');
 const Sequelize = require('sequelize');
 const commands = require('./commands.js');
 const { getCurrencies, convertionRate, formatCurrency } = require('./currencies.js');
+const { minimumTransactions } = require('./transactions.js');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -238,6 +239,17 @@ async function tally(guildId) {
 		}
 	});
 
+	const guild = await Guilds.findOne({ where: { guildId: guildId } });
+	try {
+		const channel = await client.channels.fetch(guild.tallyChannelId);
+		const message = await channel.messages.fetch(guild.tallyMessageId);
+		message.delete()
+	} catch (error) { }
+
+	if (Object.values(tally).every(balance => balance < 0.01)) {
+		return { embeds: [{ title: "Tally", description: "All settled up!" }] };
+	}
+
 	const max = Math.max(...Object.values(tally).map(Math.abs));
 	const w = 600, r = 8, barHeight = 52, barSpacing = 8;
 	const h = (barHeight + barSpacing) * users.length + 8;
@@ -274,14 +286,11 @@ async function tally(guildId) {
 		}
 	});
 
-	const guild = await Guilds.findOne({ where: { guildId: guildId } });
-	try {
-		const channel = await client.channels.fetch(guild.tallyChannelId);
-		const message = await channel.messages.fetch(guild.tallyMessageId);
-		message.delete()
-	} catch (error) { }
-
-	return { embeds: [{ title: "Tally", image: { url: "attachment://tally.png" } }], files: [new AttachmentBuilder(await canvas.encode('png'), { name: 'tally.png' })] };
+	return { embeds: [{
+		title: "Tally",
+		image: { url: "attachment://tally.png" },
+		fields: [{ name: "Best way to settle up:", value: minimumTransactions(tally).map(transaction => `<@${transaction.from}> ➜ <@${transaction.to}>: ${formatCurrency(transaction.amount, tallyCurrency)}`).join('\n') }],
+	}], files: [new AttachmentBuilder(await canvas.encode('png'), { name: 'tally.png' })] };
 }
 
 const commandData = {};
