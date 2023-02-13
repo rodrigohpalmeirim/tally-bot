@@ -146,6 +146,24 @@ client.on(Events.InteractionCreate, async interaction => {
 				await interaction.deferReply();
 				const balanceMessage = await interaction.followUp(await tally(guildId));
 				await Guilds.upsert({ guildId: guildId, tallyMessageId: balanceMessage.id, tallyChannelId: interaction.channelId });
+			} else if (commandName === 'history') {
+				const expenses = await Expenses.findAll({ where: { guildId: guildId }, order: [['createdAt', 'DESC']] });
+				await interaction.reply({
+					ephemeral: true,
+					embeds: [
+						new EmbedBuilder()
+							.setTitle('History')
+							.setFields(
+								expenses.map((expense, i) => {
+									console.log(expense);
+									return {
+										name: `${i + 1}. ${expense.title} (${formatCurrency(expense.amount, expense.currency)})`,
+										value: `${expense.type === 'income' ? 'Received' : 'Paid'} by <@${expense.primaryUser}>`,
+									};
+								}
+							)),
+					],
+				});
 			}
 		} else if (interaction.isAutocomplete()) { // Handle autocomplete
 			const focusedValue = interaction.options.getFocused();

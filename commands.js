@@ -76,4 +76,7 @@ module.exports = [
 	new SlashCommandBuilder()
 		.setName('tally')
 		.setDescription('Show the balances of all users'),
+	new SlashCommandBuilder()
+		.setName('history')
+		.setDescription('Show the history of all expenses'),
 ];
