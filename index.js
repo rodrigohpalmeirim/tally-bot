@@ -9,8 +9,8 @@ const { minimumTransactions } = require('./transactions.js');
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.once(Events.ClientReady, c => {
-	Expenses.sync({ force: true }); // TODO: Remove force: true
-	Guilds.sync({ force: true }); // TODO: Remove force: true
+	Expenses.sync();
+	Guilds.sync();
 	console.log(`Ready! Logged in as ${c.user.tag}`);
 });
 
@@ -155,7 +155,6 @@ client.on(Events.InteractionCreate, async interaction => {
 							.setTitle('History')
 							.setFields(
 								expenses.map((expense, i) => {
-									console.log(expense);
 									return {
 										name: `${i + 1}. ${expense.title} (${formatCurrency(expense.amount, expense.currency)})`,
 										value: `${expense.type === 'income' ? 'Received' : 'Paid'} by <@${expense.primaryUser}>`,
@@ -279,7 +278,7 @@ async function tally(guildId) {
 	ctx.font = "28px sans-serif";
 	ctx.textBaseline = 'middle';
 	users.forEach((user, i) => {
-		const username = client.users.cache.get(user).username;
+		const username = client.guilds.cache.get(guildId).members.cache.get(user)?.displayName || client.users.cache.get(user)?.username || user;
 		const balanceStr = formatCurrency(tally[user], tallyCurrency, true);
 		const barWidth = Math.abs(tally[user]) / max * w / 2;
 		ctx.beginPath();
